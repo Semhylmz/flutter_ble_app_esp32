@@ -17,6 +17,7 @@ dependencies:
 
   flutter_blue_plus: ^1.32.5
   gap: any
+  fluttertoast: any
 
 dev_dependencies:
   flutter_test:

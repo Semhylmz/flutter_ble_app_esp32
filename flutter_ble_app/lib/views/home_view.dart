@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_ble_app/consts/ble_const.dart';
 import 'package:flutter_ble_app/views/scan_view.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,9 +17,9 @@ class _HomePageState extends State<HomePage> {
   late bool _isScanning;
 
   late BluetoothConnectionState _bluetoothConnectionState;
+  late BluetoothCharacteristic? _selectedCharacteristic;
 
   late List<ScanResult> _scanResults;
-  late StreamSubscription<List<ScanResult>> _scanResultsSubscription;
   late StreamSubscription<bool> _isScanningSubscription;
 
   @override
@@ -27,7 +29,7 @@ class _HomePageState extends State<HomePage> {
     _isScanning = false;
 
     _bluetoothConnectionState = BluetoothConnectionState.disconnected;
-    _scanResultsSubscription = FlutterBluePlus.scanResults.listen(
+    FlutterBluePlus.scanResults.listen(
       (results) {
         _scanResults = results;
         if (mounted) setState(() {});
@@ -44,7 +46,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    _scanResultsSubscription.cancel();
     _isScanningSubscription.cancel();
     super.dispose();
   }
@@ -64,20 +65,41 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future getCharacteristic({required int selectedDeviceIndex}) async {
+    List<BluetoothService> services =
+        await _scanResults[selectedDeviceIndex].device.discoverServices();
+    for (BluetoothService service in services) {
+      for (BluetoothCharacteristic characteristic in service.characteristics) {
+        if (characteristic.uuid.toString() == mCharacteristicUuid) {
+          _selectedCharacteristic = characteristic;
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
       body: Center(
-        child:
-            _bluetoothConnectionState == BluetoothConnectionState.disconnected
-                ? ScanPage(
-                    scanResults: _scanResults,
-                    connect: (p0) {},
-                    isScanning: _isScanning,
-                    timerValue: 15,
-                  )
-                : const SizedBox.shrink(),
+        child: _bluetoothConnectionState ==
+                BluetoothConnectionState.disconnected
+            ? ScanPage(
+                scanResults: _scanResults,
+                isScanning: _isScanning,
+                timerValue: 15,
+                connect: (index) async {
+                  await _scanResults[index].device.connect().then(
+                        (value) => getCharacteristic(
+                          selectedDeviceIndex: index,
+                        ),
+                      );
+                  Fluttertoast.showToast(
+                    msg: '${_scanResults[index].device.platformName} connected',
+                  );
+                },
+              )
+            : const SizedBox.shrink(),
       ),
     );
   }
